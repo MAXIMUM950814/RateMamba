@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import argparse
+import json
+import os
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import classification_report, confusion_matrix
+import joblib
+
+SELECTED_COLS = [
+    "raw_h_mag_mean",
+    "raw_h_mag_std",
+    "raw_h_sv2_mean",
+    "raw_csi_matrix_r0_c0_mag_mean",
+    "raw_csi_matrix_r0_c1_mag_mean",
+    "raw_csi_matrix_r0_c2_mag_mean",
+    "raw_csi_matrix_r0_c3_mag_mean",
+    "raw_csi_matrix_r1_c0_mag_mean",
+    "raw_csi_matrix_r1_c1_mag_mean",
+    "raw_csi_matrix_r1_c2_mag_mean",
+    "raw_csi_matrix_r1_c3_mag_mean",
+    "raw_csi_matrix_r1_c0_spec_energy",
+    "raw_csi_matrix_r1_c2_spec_energy",
+    "raw_csi_matrix_r1_c3_spec_energy",
+    "raw_csi_matrix_r0_c1_spec_energy",
+    "raw_csi_matrix_r0_c2_spec_energy",
+    "raw_csi_matrix_r0_c3_spec_energy",
+    "raw_csi_matrix_r0_c0_spec_energy",
+    "raw_noise_floor",
+    "cat_terminal_id__0",
+    "cat_terminal_id__1",
+    "cat_terminal_id__2",
+    "mcs",
+]
+
+def parse_args():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--csv", default="train_pre_non_txbf.csv")
+    ap.add_argument("--target", default="mcs")
+    ap.add_argument("--outdir", default="artifacts")
+    ap.add_argument("--test_size", type=float, default=0.2)
+    ap.add_argument("--random_state", type=int, default=42)
+    ap.add_argument("--max_epochs", type=int, default=50)
+    ap.add_argument("--batch_size", type=int, default=32)
+    ap.add_argument("--patience", type=int, default=3)
+    ap.add_argument("--monitor", default="val_loss")
+    ap.add_argument("--mode", default="min")
+    ap.add_argument("--lr", type=float, default=5e-4)
+    ap.add_argument("--lr_patience", type=int, default=3)
+    ap.add_argument("--lr_factor", type=float, default=0.5)
+    ap.add_argument("--weight_decay", type=float, default=1e-5)
+    ap.add_argument("--predict_csv", default=None)
+    ap.add_argument("--predict_out", default=None)
+    return ap.parse_args()
+
+def ensure_outdir(path: str):
+    Path(path).mkdir(parents=True, exist_ok=True)
+
+def load_classifier():
+    try:
+        from models import Classifier
+    except Exception as e:
+        raise ImportError("无法导入 Classifier") from e
+    return Classifier
+
+def select_and_validate_columns(df: pd.DataFrame, cols: list, target: str) -> pd.DataFrame:
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        raise ValueError(f"数据缺少列: {missing}")
+    return df[cols]
+
+def main():
+    args = parse_args()
+    ensure_outdir(args.outdir)
+    df = pd.read_csv(args.csv)
+    df = select_and_validate_columns(df, SELECTED_COLS, args.target)
+    X = df.drop(columns=[args.target])
+    y = df[args.target].values
+    le = LabelEncoder()
+    y_enc = le.fit_transform(y)
+    X_train, X_test, y_train_enc, y_test_enc = train_test_split(
+        X, y_enc, test_size=args.test_size, random_state=args.random_state, stratify=y_enc
+    )
+    Classifier = load_classifier()
+    classifier = Classifier()
+    classifier.fit(
+        X_train, y_train_enc,
+        max_epochs=args.max_epochs,
+        batch_size=args.batch_size,
+        patience=args.patience,
+        monitor=args.monitor,
+        mode=args.mode,
+        lr=args.lr,
+        lr_patience=args.lr_patience,
+        lr_factor=args.lr_factor,
+        weight_decay=args.weight_decay,
+    )
+    y_pred = classifier.predict(X_test)
+    report = classification_report(y_test_enc, y_pred, output_dict=True, zero_division=0)
+    cm = confusion_matrix(y_test_enc, y_pred)
+    print(json.dumps(report, indent=2, ensure_ascii=False))
+    print(cm)
+    with open(os.path.join(args.outdir, "classification_report.json"), "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)
+    np.savetxt(os.path.join(args.outdir, "confusion_matrix.csv"), cm, delimiter=",", fmt="%d")
+    joblib.dump(classifier, os.path.join(args.outdir, "model.joblib"))
+    joblib.dump(le, os.path.join(args.outdir, "label_encoder.joblib"))
+    test_pred_df = pd.DataFrame({
+        "index": X_test.index,
+        "y_true_enc": y_test_enc,
+        "y_true": le.inverse_transform(y_test_enc),
+        "y_pred_enc": y_pred,
+        "y_pred": le.inverse_transform(y_pred),
+    })
+    test_pred_df.to_csv(os.path.join(args.outdir, "test_predictions.csv"), index=False)
+    if args.predict_csv:
+        df_new = pd.read_csv(args.predict_csv)
+        feature_cols = [c for c in SELECTED_COLS if c != args.target]
+        missing_new = [c for c in feature_cols if c not in df_new.columns]
+        if missing_new:
+            raise ValueError(f"预测文件缺少列: {missing_new}")
+        X_new = df_new[feature_cols]
+        y_new_pred_enc = classifier.predict(X_new)
+        y_new_pred = le.inverse_transform(y_new_pred_enc)
+        out_path = args.predict_out or os.path.join(args.outdir, "predict_results.csv")
+        df_out = df_new.copy()
+        df_out["y_pred_enc"] = y_new_pred_enc
+        df_out["y_pred"] = y_new_pred
+        df_out.to_csv(out_path, index=False)
+    print(f"完成，结果目录: {args.outdir}")
+
+if __name__ == "__main__":
+    main()
