@@ -145,6 +145,18 @@ notebook\mambular-txbf.ipynb
 存储在 `\results\q3_mamba` 和 `\results\q3_mamba_non` 中，包括结果、图表、参数和模型权重文件。
 预测结果存储在`valid_pre_txbf_predict.csv`和`valid_pre_non_txbf_predict.csv`文件中。
 
+
+
+**类别映射说明:**
+
+```
+ Non-txbf数据集类映射： {103.2: 0, 137.6: 1, 206.5: 2, 275.3: 3, 309.7: 4, 344.1: 5, 412.9: 6, 458.8: 7, 516.2: 8, 573.5: 9, 619.4: 10} 训练集标签范围: 0 → 10 类别数: 11
+ 
+  txbf数据集类映射： {137.6: 0, 206.5: 1, 275.3: 2, 309.7: 3, 344.1: 4, 412.9: 5, 458.8: 6, 516.2: 7, 573.5: 8, 619.4: 9, 688.2: 10} 训练集标签范围: 0 → 10 类别数: 11
+```
+
+
+
 ## 👥 贡献者
 <p align="left"> <a href="https://github.com/Watch-A">Watch-A</a> </p> <p align="left"> <a href="https://github.com/ArcadiaLin">ArcadiaLin</a> </p>
 

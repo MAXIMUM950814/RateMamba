@@ -141,15 +141,35 @@ All experimental results are stored in the `results` directory:
    Results, plots, and parameter files are saved in `\results\q1_eesm`.
    Prediction results:
    `valid_non_txbf_predict.csv`
+   
 - **Task 2 (Rate Prediction – Non-TxBF Scenario):**
    Results, plots, parameters, and trained model weights are also stored in `\results\q1_eesm`.
    Prediction results:
    `valid_pre_non_txbf_predict.csv`
+   
 - **Task 3 (Rate Prediction – TxBF and Non-TxBF Scenarios):**
    Results, plots, parameters, and trained model weights are saved in `\results\q3_mamba` and `\results\q3_mamba_non`.
    Prediction results:
+  
   - `valid_pre_txbf_predict.csv`
+  
   - `valid_pre_non_txbf_predict.csv`
+  
+    
+  
+    **Class mapping description:**
+  
+  ```
+  Non-txbf dataset class mapping: {103.2: 0, 137.6: 1, 206.5: 2, 275.3: 3, 309.7: 4, 344.1: 5, 412.9: 6, 458.8: 7, 516.2: 8, 573.5: 9, 619.4: 10}
+  Training set label range: 0 → 10
+  Number of classes: 11
+  
+  Txbf dataset class mapping: {137.6: 0, 206.5: 1, 275.3: 2, 309.7: 3, 344.1: 4, 412.9: 5, 458.8: 6, 516.2: 7, 573.5: 8, 619.4: 9, 688.2: 10}
+  Training set label range: 0 → 10
+  Number of classes: 11
+  ```
+  
+  
 
 ## 👥 Contributors
 
